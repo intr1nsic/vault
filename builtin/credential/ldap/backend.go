@@ -99,7 +99,7 @@ func (b *backend) Login(req *logical.Request, username string, password string) 
 	sresult, err := c.Search(&ldap.SearchRequest{
 		BaseDN: cfg.GroupDN,
 		Scope:  2, // subtree
-		Filter: fmt.Sprintf("(|(memberUid=%s)(member=%s)(uniqueMember=%s)(memberOf=%s))", username, binddn, binddn, username),
+		Filter: fmt.Sprintf("(|(memberUid=%s)(member=%s)(uniqueMember=%s))", username, binddn, binddn),
 	})
 	if err != nil {
 		return nil, logical.ErrorResponse(fmt.Sprintf("LDAP search failed: %v", err)), nil
