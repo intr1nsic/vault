@@ -60,10 +60,38 @@ func (b *backend) Login(req *logical.Request, username string, password string) 
 		return nil, logical.ErrorResponse(err.Error()), nil
 	}
 
-	// Try to authenticate to the server using the provided credentials
-	binddn := fmt.Sprintf("%s=%s,%s", cfg.UserAttr, username, cfg.UserDN)
+    // Try to authenticate to the server using the provided credentials
+    binddn := fmt.Sprintf("%s=%s,%s", cfg.UserAttr, username, cfg.UserDN)
+
+    // If cfg.RealmDomain is set, format the binddn to use the provided
+    // username@realmdomain.
+    if len(cfg.RealmDomain) != 0 {
+            binddn = fmt.Sprintf("%s@%s", username, cfg.RealmDomain)
+    }
+
+	// Attempt to bind as the user.
 	if err = c.Bind(binddn, password); err != nil {
 		return nil, logical.ErrorResponse(fmt.Sprintf("LDAP bind failed: %v", err)), nil
+	}
+
+	// AD - If AD, search for the user given the userPrincipalName
+	// This will override binddn so that it matches the user's distinguishedName
+	// NODE: Hack for Rubicon AD structure
+	if len(cfg.RealmDomain) != 0 {
+		user, err := c.Search(&ldap.SearchRequest{
+			BaseDN: cfg.UserDN,
+			Scope: 2,
+			Filter: fmt.Sprintf("(userPrincipalName=%s@%s)", username, cfg.RealmDomain),
+			Attributes: []string{"distinguishedName"},
+		})
+		if err != nil {
+			return nil, logical.ErrorResponse(fmt.Sprintf("LDAP user search failed: %v", err)), nil
+		}
+		if len(user.Entries) > 1 {
+			return nil, logical.ErrorResponse(fmt.Sprintf("Too many LDAP user results")), nil
+		}
+
+		binddn = user.Entries[0].GetAttributeValue("distinguishedName")
 	}
 
 	// Enumerate all groups the user is member of. The search filter should
@@ -71,7 +99,7 @@ func (b *backend) Login(req *logical.Request, username string, password string) 
 	sresult, err := c.Search(&ldap.SearchRequest{
 		BaseDN: cfg.GroupDN,
 		Scope:  2, // subtree
-		Filter: fmt.Sprintf("(|(memberUid=%s)(member=%s)(uniqueMember=%s))", username, binddn, binddn),
+		Filter: fmt.Sprintf("(|(memberUid=%s)(member=%s)(uniqueMember=%s)(memberOf=%s))", username, binddn, binddn, username),
 	})
 	if err != nil {
 		return nil, logical.ErrorResponse(fmt.Sprintf("LDAP search failed: %v", err)), nil
@@ -106,3 +134,4 @@ Configuration of the server is done through the "config" and "groups"
 endpoints by a user with root access. Authentication is then done
 by suppying the two fields for "login".
 `
+

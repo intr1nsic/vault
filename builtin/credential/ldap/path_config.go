@@ -31,6 +31,10 @@ func pathConfig(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "Attribute used for users (default: cn)",
 			},
+			"realmdomain": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: "REALM domain for user auth (default: null)",
+			},
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -72,10 +76,11 @@ func (b *backend) pathConfigRead(
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"url":      cfg.Url,
-			"userdn":   cfg.UserDN,
-			"groupdn":  cfg.GroupDN,
-			"userattr": cfg.UserAttr,
+			"url":         cfg.Url,
+			"userdn":      cfg.UserDN,
+			"groupdn":     cfg.GroupDN,
+			"userattr":    cfg.UserAttr,
+			"realmdomain": cfg.RealmDomain,
 		},
 	}, nil
 }
@@ -91,6 +96,10 @@ func (b *backend) pathConfigWrite(
 	userattr := d.Get("userattr").(string)
 	if userattr != "" {
 		cfg.UserAttr = strings.ToLower(userattr)
+	}
+	realmdomain := d.Get("realmdomain").(string)
+	if realmdomain != "" {
+		cfg.RealmDomain = strings.ToLower(realmdomain)
 	}
 	userdn := d.Get("userdn").(string)
 	if userdn != "" {
@@ -122,10 +131,11 @@ func (b *backend) pathConfigWrite(
 }
 
 type ConfigEntry struct {
-	Url      string
-	UserDN   string
-	GroupDN  string
-	UserAttr string
+	Url         string
+	UserDN      string
+	GroupDN     string
+	UserAttr    string
+	RealmDomain string
 }
 
 func (c *ConfigEntry) DialLDAP() (*ldap.Conn, error) {
